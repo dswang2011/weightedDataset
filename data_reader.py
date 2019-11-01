@@ -3,7 +3,6 @@ import os
 #task: 1. get tokenized diction; 2. 
 
 #import stanfordnlp
-import NLP
 import numpy as np
 import codecs
 
@@ -301,279 +300,56 @@ def text_to_sequences_suffix(gene_texts,word_index, MAX_SEQUENCE_LENGTH):
 	return np.asarray(sequences,dtype=int)
 
 
-def load_data(tsv_file_path,mode= "train"):
-    with open(tsv_file_path, encoding='utf8') as f:
-        content = f.readlines()
-    content = [x.rstrip() for x in content]
-    header = content[0]
-    res = []
-    for line in content[1:]:
-        data = DatasetSchema(line)
-        orig_txt = data.get_text()
-        generalized_txt = data.get_generalized_text()
-        # below is to get exact sentences
-        sentences = generalized_txt.split('.')
-        exact_sents = []
-        for sent in sentences:
-            if 'AAAC' in sent or 'BBBC' in sent or 'PPPC' in sent or 'PPPCS' in sent:
-                exact_sents.append(sent)
-        exact_txt = '.'.join(exact_sents)
-        # end of previous below
-
-        if mode == "train":
-            label_A = data.get_A_coref()
-            label_B = data.get_B_coref()
-            if label_A in ['TRUE','True','true'] and label_B in ['FALSE','False','false']:
-                label = 0
-            elif label_B in ['TRUE','True','true'] and label_A in ['FALSE','False','false']:
-                label = 1
-            else:
-                label = 2
-            res.append([orig_txt,exact_txt,label])
-        else:
-            samp_id = data.get_id()
-            res.append([orig_txt,exact_txt,samp_id])
-    return np.array(res)
-
-import csv
-### uncomment this to use for the IMDB/MR dataset ##########
-def load_bi_class_data(file_path,hasHead=0):
-	texts=[]
-	labels=[]
-	with open(file_path, encoding='utf8') as f:
-		csv_reader = csv.reader(f, delimiter='\t')
-		for row in csv_reader:
-			texts.append(row[0].strip())
-			label = '0'
-			for i in range(1,len(row)):
-				if row[i].strip() in ['0','1']:
-					label = row[i].strip()
-			labels.append(label)
-	# print('labels:',labels)
-
-	return [texts,labels]
-
-#### THIS IS TO RUN FOR GAP ######
-def load_classification_data(file_path,hasHead=0):
-	texts=[]
-	labels=[]
-	with open(file_path, encoding='utf8') as f:
-		csv_reader = csv.reader(f, delimiter='\t')
-		for row in csv_reader:
-			texts.append(row[0].strip())
-			# label = '0'
-			for i in range(1,len(row)):
-			# 	if row[i].strip() in ['0','1',0,1]:
-				label = row[i].strip()
-				# print(label)
-			labels.append(label)
-	# print('labels:',labels)
-	return [texts,labels]
-
-
-def load_pair_data(file_path,hasHead=0):
-	texts1,texts2=[],[]
-	labels=[]
-	with open(file_path, encoding='utf8') as f:
-		csv_reader = csv.reader(f, delimiter='\t')
-		for row in csv_reader:
-			claim_id = row[0].strip()
-			if 'pomt' not in claim_id:
-				continue
-			label = row[2].strip().lower()
-			if label not in ['true','false','no flip','half-true','pants on fire!','half flip','mostly true','full flop','mostly false']:
-				continue
-			max_snippets = np.maximum(5,len(row)-3)
-			texts1.append(row[1].strip())
-			text2 = ' '.join(row[3:max_snippets])
-			texts2.append(text2.strip())
-			labels.append(label)
-	return texts1,texts2,labels
-
-def load_triple_data(file_path):
-	triples=[]
-	labels=[]
-	with open(file_path,'r',encoding='utf8') as f:
-		for line in f:
-			strs = line.split('\t')
-			triples.append(strs[0].strip())
-			label = '0'
-			for i in range(1,len(strs)):
-				if strs[i].strip() in ['0','1']:
-					label = strs[i].strip()
-			labels.append(label)
-	return [triples,labels]
-
-
-def get_texts_from_folder(directory):
-	texts = []
-	for filename in os.listdir(directory):
-		if filename.endswith(".txt"):
-			file_path = os.path.join(directory, filename)
-			file = open(file_path,'r')
-			lines = file.readlines()
-			texts.append(' '.join(lines).replace('\n',''))
-	return texts
-# load MR
-from sklearn.utils import shuffle
-def load_mr_data(folder):
-	pos_texts = get_texts_from_folder(folder+'/'+'pos/')
-	neg_texts = get_texts_from_folder(folder+'/'+'neg/')
-	pos_labels = np.ones(len(pos_texts),dtype=int)
-	neg_labels = np.zeros(len(neg_texts),dtype=int)
-	texts = pos_texts+neg_texts
-	labels = pos_labels.tolist()+neg_labels.tolist()
-	X,y = shuffle(texts, labels, random_state=0)
-	return [X,y]
-
-def load_RTE_data(file_path,hasHead=0):
-	texts1,texts2=[],[]
-	labels=[]
-	with open(file_path, 'r', encoding='utf8', errors='ignore') as f:
-		for row in f:
-			strs = row.split('\t')
-			label = strs[3].strip().lower()
-			if label not in ['not_entailment','entailment','0','1']:
-				print('strange label:',label)
-				continue
-			texts1.append(strs[1].strip())
-			texts2.append(strs[2].strip())
-			labels.append(label)
-	return texts1,texts2,labels
-
-def load_MRPC_data(file_path,hasHead=1):
-	texts1,texts2=[],[]
-	labels=[]
+def load_apple_tweet_sent(file_path,hasHead=1):
+	texts,confidences,labels=[],[],[]
 	count_line=0
 	with open(file_path, 'r', encoding='utf8', errors='ignore') as f:
 		for row in f:
 			count_line+=1
 			if count_line==1 and hasHead==1:
 				continue
-			strs = row.split('\t')
-			label = strs[0].strip().lower()
-			if label not in [0,1,'0','1']:
-				print('strange label:',label)
+			strs = row.split(',')
+			if len(strs)<11:
 				continue
-			texts1.append(strs[3].strip())
-			texts2.append(strs[4].strip())
+			text = strs[11].strip()
+			label = strs[5].strip().lower()
+			confid = strs[6].strip().lower()
 			labels.append(label)
-	return texts1,texts2,labels
-
-
-def load_relation_data(file_path,hasHead=0):
-	texts,entity1,entity2,labels=[],[],[],[]
-	labels=[]
-	count_line=0
-	with open(file_path, 'r', encoding='utf8', errors='ignore') as f:
-		for row in f:
-			count_line+=1
-			if count_line==1 and hasHead==1:
-				continue
-			strs = row.split('\t')
-			label = strs[3].strip().lower()
-			
-			texts.append(strs[0].strip())
-			entity1.append(strs[1].strip())
-			entity2.append(strs[2].strip())
-			labels.append(label)
-	return [texts,entity1,entity2],labels	
-
-def load_KBP_data(file_path,hasHead=0):
-	texts,entity1,entity2,labels=[],[],[],[]
-	labels=[]
-	count_line=0
-	with open(file_path, 'r', encoding='utf8', errors='ignore') as f:
-		for row in f:
-			count_line+=1
-			if count_line==1 and hasHead==1:
-				continue
-			strs = row.split('\t')
-			label = strs[4].strip().lower()
-			
-			texts.append(strs[1].strip())
-			entity1.append(strs[2].strip())
-			entity2.append(strs[3].strip())
-			labels.append(label)
-	return [texts,entity1,entity2],labels	
-
-def load_rel_block_data(file_path,hasHead=0):
-	texts,blocks,entity1,entity2,labels=[],[],[],[],[]
-	labels=[]
-	count_line=0
-	with open(file_path, 'r', encoding='utf8', errors='ignore') as f:
-		for row in f:
-			count_line+=1
-			if count_line==1 and hasHead==1:
-				continue
-			strs = row.split('\t')
-			label = strs[4].strip().lower()
-			label = label.replace('(e1,e2)','')
-			label = label.replace('(e2,e1)','')
-			texts.append(strs[0].strip())
-			# blocks.append(strs[1].strip())
-			block = strs[1].strip()
-			e1 = strs[2].strip()
-			e2 = strs[3].strip()
-			# process
-			entity1.append(e1)
-			entity2.append(e2)
-			# block = block.replace(e1,'aaac')
-			# block = block.replace(e2,'bbbc')
-			blocks.append(block)
-			labels.append(label)
-	if 'SemEval2' in file_path:
-		return [blocks,entity1,entity2],labels
-	return [texts,blocks,entity1,entity2],labels
-
-def load_rel_feature_data(file_path,hasHead=0):
-	blocks,POSs,deps,entity1,entity2,labels=[],[],[],[],[],[]
-	texts,heads,cats=[],[],[]
-	count_line=0
-	with open(file_path, 'r', encoding='utf8', errors='ignore') as f:
-		for row in f:
-			count_line+=1
-			if count_line==1 and hasHead==1:
-				continue
-			strs = row.split('\t')
-			label = strs[6].strip().lower()
-			label = label.replace('(e1,e2)','')
-			label = label.replace('(e2,e1)','')
-			# blocks.append(strs[1].strip())
-			text = strs[0].strip()
-			block = strs[1].strip()
-			pos = strs[2].strip()
-			dep = strs[3].strip()
-			# head = strs[4].strip()
-			e1 = strs[4].strip()
-			e2 = strs[5].strip()
-			# cat
-			# cat = strs[8].strip()
-			# cats.append(cat)
-			# process
 			texts.append(text)
-			entity1.append(e1)
-			entity2.append(e2)
-			blocks.append(block)
-			# heads.append(head)
-			POSs.append(pos)
-			deps.append(dep)
-			labels.append(label)
+			confidences.append(confid)
 			
-	return [texts,blocks,heads,POSs,deps,entity1,entity2],labels
+	return [texts,confidences],labels
 
+def load_tweet_glob_warm(file_path,hasHead=1):
+	texts,confidences,labels=[],[],[]
+	count_line=0
+	with open(file_path, 'r', encoding='utf8', errors='ignore') as f:
+		for row in f:
+			count_line+=1
+			if count_line==1 and hasHead==1:
+				continue
+			strs = row.split('\t')
+			if len(strs)<3:
+				continue
+			text = strs[0].strip()
+			label = strs[1].strip().lower()
+			if label not in ['0','1']:
+				continue
+			confid = strs[2].strip().lower()
+			labels.append(label)
+			texts.append(text)
+			confidences.append(confid)
+			
+	return [texts,confidences],labels
 
 def load_data_overall(dataset,file_name="train.csv"):
 	texts,entity1,entity2,labels=[],[],[],[]
-	output_root = "prepared/"+dataset+"/"
-	if dataset in ['SemEval']:
-		return load_relation_data(file_path=output_root+file_name)
-	elif dataset in ['SemEval_block','SemEval2']:
-		return load_rel_block_data(file_path=output_root+file_name)
-	elif dataset in ['SemEval_feature','SemEval_longblock','KBP37_longblock','KBP37_shortblock']:
-		return load_rel_feature_data(file_path=output_root+file_name)
-	elif dataset in ['KBP','KBP37']:
-		return load_KBP_data(file_path=output_root+file_name)
+	output_root = "datasets/"+dataset+"/"
+	if dataset in ['apple_tweet']:
+		return load_apple_tweet_sent(file_path=output_root+file_name)
+	elif dataset in ['tweet_global_warm']:
+		return load_tweet_glob_warm(file_path=output_root+file_name)
+
 
 def write_line(file_path,content):
 	with open(file_path,'a',encoding='utf8') as fw:
@@ -581,8 +357,9 @@ def write_line(file_path,content):
 		fw.write('\n')
 
 
-# texts,labels = load_data_overall('SemEval_feature','test.csv')
-# print(set(labels))
+texts,labels = load_data_overall('tweet_global_warm','test.csv')
+print(set(labels))
+print(len(labels))
 # print(texts[7][:5])
 # from sklearn.preprocessing import LabelEncoder
 # from keras.utils import to_categorical

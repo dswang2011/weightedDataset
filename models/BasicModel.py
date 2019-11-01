@@ -59,8 +59,8 @@ class BasicModel(object):
     def __init__(self,opt): 
         self.opt=opt
         self.model = self.get_model(opt)
-        self.pos_model = self.get_model(opt,'pos')
-        self.dep_model = self.get_model(opt,'dep')
+        # self.pos_model = self.get_model(opt,'pos')
+        # self.dep_model = self.get_model(opt,'dep')
         self.model.compile(optimizer=optimizers.Adam(lr=opt.lr), loss='categorical_crossentropy', metrics=['acc'])
 
     def get_model(self,opt):
@@ -99,65 +99,30 @@ class BasicModel(object):
         return filename
 
 
-    def get_relation_model(self,opt,dataset):
+    def custom_loss(self,layer):
+
+        # Create a loss function that adds the MSE loss to the mean of all squared activations of a specific layer
+        def loss(y_true,y_pred):
+            return K.categorical_crossentropy(y_pred, y_true) 
+        # Return a function
+        return loss
+
+
+    def get_weighted_model(self,opt,dataset):
         representation_model = Model(inputs=self.model.input, output=self.model.layers[-2].output)
-        pos_rep_model = Model(inputs=self.pos_model.input, output=self.pos_model.layers[-2].output)
-        dep_rep_model = Model(inputs=self.dep_model.input, output=self.dep_model.layers[-2].output)
         
         self.sent = Input(shape=(self.opt.max_sequence_length,), dtype='int32')
-        self.blocks = Input(shape=(self.opt.min_sequence_length,), dtype='int32')
-        self.entity1 = Input(shape=(self.opt.min_sequence_length,), dtype='int32')
-        self.entity2 = Input(shape=(self.opt.min_sequence_length,), dtype='int32')
+        self.confid = Input(shape=(1,), dtype='float32')
 
         s = representation_model(self.sent)
-        b = representation_model(self.blocks)
 
-        e1 = representation_model(self.entity1)
-        e2 = representation_model(self.entity2)
+        output = Dense(self.opt.nb_classes, activation="softmax")(s) 
+        model = Model([self.sent,self.confid], output)
 
-        if '---block' in dataset: # concatenate
-            b_e1 = keras.layers.Subtract()([b,e1])
-            b_e2 = keras.layers.Subtract()([b_e1,e2])
-            # subtract_rep = Dense(50,activation='relu',name='subtract_rep')(b_e2)
-            # q,a, q-a, q*a
-            # s_reduce = Dense(50,activation='relu',name='context_rep')(s)
-            reps = [s,b,e1,e2,b_e2]
-            reps = Concatenate()(reps)
-            reps = Attention()(reps)
-            output = Dense(self.opt.nb_classes, activation="softmax")(reps)
-            model = Model([self.sent,self.blocks,self.entity1,self.entity2], output)
-        elif 'feature' in dataset or 'longblock' in dataset or 'shortblock' in dataset:
-            # POS and dep encoding
-            self.pos = Input(shape=(self.opt.min_sequence_length,), dtype='int32')
-            self.dep = Input(shape=(self.opt.min_sequence_length,), dtype='int32')
-            # self.heads = Input(shape=(self.opt.min_sequence_length,), dtype='int32')
-            # self.cats = Input(shape=(self.opt.min_sequence_length,), dtype='int32')
-            pos = pos_rep_model(self.pos)
-            dep = dep_rep_model(self.dep)
-            # heads = representation_model(self.heads)
-            # cats = representation_model(self.cats)
-            # Subtract layer
-            b_e1 = keras.layers.Subtract()([b,e1])
-            b_e2 = keras.layers.Subtract()([b_e1,e2])
-            # sim
-            # similarity = Dot(axes=1, normalize=True)([e1,e2])
-            # Concat all
-            reps = [b,pos,dep,e1,e2,b_e2,Multiply()([e1,e2])]
-            reps = Concatenate()(reps)
-            # Output
-            output = Dense(self.opt.nb_classes, activation="softmax")(reps)
-            model = Model([self.blocks,self.pos,self.dep,self.entity1,self.entity2], output)
-        elif 'block' not in dataset:
-            b_e1 = keras.layers.Subtract()([s,e1])
-            b_e2 = keras.layers.Subtract()([b_e1,e2])
-            # q,a, q-a, q*a
-            reps = [s,e1,e2,b_e2]
-            reps = Concatenate()(reps)
-            output = Dense(self.opt.nb_classes, activation="softmax")(reps)
-            model = Model([self.sent,self.entity1,self.entity2], output)
             
         model.summary()
-        model.compile(loss = "categorical_hinge",  optimizer = getOptimizer(name=self.opt.optimizer,lr=self.opt.lr), metrics=["acc"])
+        # model.compile(loss = "categorical_crossentropy",  optimizer = getOptimizer(name=self.opt.optimizer,lr=self.opt.lr), metrics=["acc"])
+        model.compile(loss = self.custom_loss(self.confid),  optimizer = getOptimizer(name=self.opt.optimizer,lr=self.opt.lr), metrics=["acc"])
         return model
 
     def get_pair_model(self,opt):
@@ -204,8 +169,9 @@ class BasicModel(object):
         self.model =  self.get_pair_model(self.opt)
         return self.train(train,dev=dev,dirname=dirname,strategy=strategy,dataset=dataset)
 
-    def train_relation(self,train,dev=None,dirname="saved_model",strategy=None,dataset=''):
-        self.model =  self.get_relation_model(self.opt,dataset)
+    def train_weighted(self,train,dev=None,dirname="saved_model",strategy=None,dataset=''):
+        self.model =  self.get_weighted_model(self.opt,dataset)
+        
         return self.train(train,dev=dev,dirname=dirname,dataset=dataset)
 
 

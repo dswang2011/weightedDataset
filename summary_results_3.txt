@@ -1,0 +1,6 @@
+{'tweet_global_warm': {'CNN': {'orig': {'time': 0.777,
+                                        'val_acc': '0.7361111133186905'}}}}
+{'tweet_global_warm': {'CNN': {'orig': {'time': 0.729,
+                                        'val_acc': '0.7893518540594313'}}}}
+{'tweet_global_warm': {'CNN': {'orig': {'time': 0.707,
+                                        'val_acc': '0.7361111133186905'}}}}
